@@ -60,3 +60,11 @@ tasks.build {
     dependsOn("shadowJar")
 }
 
+publishing {
+    repositories {
+        maven {
+            name = "B2"
+            url = projectDir.resolve(".b2").toURI()
+        }
+    }
+}
