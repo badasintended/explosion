@@ -23,6 +23,7 @@ jobs:
         with:
           java-version: 21
           distribution: temurin
+      - run: chmod +x gradlew
       - run: ./gradlew build publish
         env:
           VERSION: 9999-git-${{ steps.vars.outputs.git_hash }}
