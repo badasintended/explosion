@@ -29,5 +29,5 @@ jobs:
           VERSION: 9999-git-${{ steps.vars.outputs.git_hash }}
       - uses: actions/upload-artifact@v4
         with:
-          name: explosion-${{ steps.vars.outputs.version }}
+          name: explosion-${{ steps.vars.outputs.git_hash }}
           path: ".localMaven/**"
