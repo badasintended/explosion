@@ -69,7 +69,7 @@ publishing {
 
         if (providers.environmentVariable("GITHUB_TOKEN").isPresent) {
             maven {
-                url = uri("https://maven.pkg.github.com/badasintended/wthit")
+                url = uri("https://maven.pkg.github.com/badasintended/explosion")
                 name = "GitHub"
                 credentials {
                     username = providers.environmentVariable("GITHUB_ACTOR").get()
