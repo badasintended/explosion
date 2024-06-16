@@ -1,9 +1,11 @@
 package lol.bai.explosion.internal
 
-import com.google.common.hash.Hashing
 import lol.bai.explosion.ExplosionDesc
 import org.gradle.api.Project
+import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.FileCollectionDependency
+import org.gradle.api.artifacts.dsl.DependencyHandler
+import org.gradle.api.provider.Provider
 import org.gradle.kotlin.dsl.add
 import org.gradle.kotlin.dsl.withType
 import java.io.File
@@ -12,27 +14,36 @@ class ExplosionDescImpl(
     private val project: Project
 ) : ExplosionDesc {
 
-    private val configuration = project.configurations.create("__explosion")
-    private val hashBuilder = StringBuilder()
+    private val dependencyModifiers = mutableListOf<(DependencyHandler, String) -> Unit>()
 
     override fun maven(notation: String) {
-        hashBuilder.append(notation)
-        hashBuilder.append(';')
+        dependencyModifiers.add { dependencies, config ->
+            dependencies.add(config, notation) { isTransitive = false }
+        }
+    }
 
-        project.dependencies.add(configuration.name, notation) { isTransitive = false }
+    override fun <T : ExternalModuleDependency> maven(provider: Provider<T>) {
+        dependencyModifiers.add { dependencies, config ->
+            dependencies.addProvider<T, T>(config, provider) { isTransitive = false }
+        }
     }
 
     override fun local(file: File) {
-        hashBuilder.append(file.absolutePath)
-        hashBuilder.append(';')
-
-        if (file.isFile) project.dependencies.add(configuration.name, project.files(file))
-        else if (file.isDirectory) project.dependencies.add(configuration.name, project.fileTree(file) {
-            include("*.jar")
-        })
+        dependencyModifiers.add { dependencies, config ->
+            if (file.isFile) dependencies.add(config, project.files(file))
+            else if (file.isDirectory) dependencies.add(config, project.fileTree(file) {
+                include("*.jar")
+            })
+        }
     }
 
     fun resolveJars(fn: (File) -> Unit) {
+        val configuration = project.configurations.create("__explosion_" + Any().hashCode())
+
+        dependencyModifiers.forEach { modifier ->
+            modifier(project.dependencies, configuration.name)
+        }
+
         configuration.resolvedConfiguration.resolvedArtifacts.forEach {
             if (it.type == "jar") fn(it.file)
         }
@@ -45,7 +56,5 @@ class ExplosionDescImpl(
 
         project.configurations.remove(configuration)
     }
-
-    val hash get() = Hashing.murmur3_128().hashString(hashBuilder.toString(), Charsets.UTF_8).toString()
 
 }

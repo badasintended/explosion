@@ -1,5 +1,6 @@
 package lol.bai.explosion.internal
 
+import com.google.common.hash.Hashing
 import lol.bai.explosion.ExplosionDesc
 import lol.bai.explosion.ExplosionExt
 import lol.bai.explosion.internal.fabric.FakeGameProvider
@@ -14,19 +15,12 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.invoke
 import java.io.File
 import java.nio.file.Path
-import kotlin.io.path.createDirectories
-import kotlin.io.path.createTempDirectory
-import kotlin.io.path.moveTo
-import kotlin.io.path.writeText
+import kotlin.io.path.*
 
 abstract class ExplosionExtImpl(
     private val project: Project,
     private val outputDir: Path
 ) : ExplosionExt {
-
-    init {
-        outputDir.createDirectories()
-    }
 
     private fun Path.resolve(vararg path: String): Path {
         return resolve(path.joinToString(File.separator))
@@ -48,7 +42,19 @@ abstract class ExplosionExtImpl(
         return dir.resolve("${name}-${version}.jar")
     }
 
-    private fun createBom(hash: String, deps: List<Pair<String, String>>): String {
+    private fun getOrCreateBom(hash: String, deps: () -> List<Pair<String, String>>): String {
+        val bom = "exploded-bom:${hash}:1"
+        val dir = outputDir.resolve("exploded-bom", hash, "1")
+        dir.createDirectories()
+        val output = dir.resolve("${hash}-1.pom")
+
+        if (output.exists()) {
+            project.logger.lifecycle("Exploded BOM for hash $hash already exists, skipping")
+            return bom
+        }
+
+        project.logger.lifecycle("Building exploded BOM for hash $hash")
+
         val depTemplate = this.javaClass.classLoader.getResource("bom_dependency.xml")!!.readText()
 
         fun createDependency(group: String, name: String, version: String): String {
@@ -61,7 +67,7 @@ abstract class ExplosionExtImpl(
         }
 
         val depsStr = StringBuilder()
-        deps.forEach { (depName, depVersion) ->
+        deps().forEach { (depName, depVersion) ->
             depsStr.append('\n')
             depsStr.append(createDependency("exploded", depName, depVersion))
         }
@@ -73,57 +79,66 @@ abstract class ExplosionExtImpl(
             .replace("%VERSION%", "1")
             .replace("%DEPENDENCIES%", depsStr.toString())
 
-        val dir = outputDir.resolve("exploded-bom", hash, "1")
-        dir.createDirectories()
-        dir.resolve("${hash}-1.pom").writeText(pom)
-        return "exploded-bom:${hash}:1"
+        output.writeText(pom)
+        return bom
     }
 
-    override fun fabric(action: Action<ExplosionDesc>): String {
+    override fun fabric(action: Action<ExplosionDesc>) = project.provider {
         val desc = ExplosionDescImpl(project)
         action(desc)
 
         val tempDir = createTempDirectory()
 
-        desc.resolveJars {
-            it.copyTo(tempDir.resolve(it.name).toFile())
-        }
+        try {
+            val hashBuilder = StringBuilder()
 
-        if (FabricLauncherBase.getLauncher() == null) Knot(EnvType.CLIENT)
+            desc.resolveJars {
+                hashBuilder.append(Hashing.murmur3_128().hashBytes(it.readBytes()))
+                hashBuilder.append(";")
 
-        val loader = FabricLoaderImpl.INSTANCE.apply {
-            gameProvider = FakeGameProvider(tempDir)
-        }
-
-        val candidates = createModDiscoverer(tempDir).discoverMods(loader, mutableMapOf())
-        candidates.removeIf { it.id == "java" }
-
-        val candidateIds = hashSetOf<String>()
-
-        candidates.forEach {
-            candidateIds.add(it.id)
-            candidateIds.addAll(it.provides)
-        }
-
-        candidates.forEach { candidate ->
-            candidate.metadata.dependencies = candidate.metadata.dependencies.filter {
-                candidateIds.contains(it.modId)
+                it.copyTo(tempDir.resolve(it.name).toFile())
             }
+
+            val hash = Hashing.murmur3_128().hashString(hashBuilder.toString(), Charsets.UTF_8).toString()
+            return@provider getOrCreateBom(hash) {
+                if (FabricLauncherBase.getLauncher() == null) Knot(EnvType.CLIENT)
+
+                val loader = FabricLoaderImpl.INSTANCE.apply {
+                    gameProvider = FakeGameProvider(tempDir)
+                }
+
+                val candidates = createModDiscoverer(tempDir).discoverMods(loader, mutableMapOf())
+                candidates.removeIf { it.id == "java" }
+
+                val candidateIds = hashSetOf<String>()
+
+                candidates.forEach {
+                    candidateIds.add(it.id)
+                    candidateIds.addAll(it.provides)
+                }
+
+                candidates.forEach { candidate ->
+                    candidate.metadata.dependencies = candidate.metadata.dependencies.filter {
+                        candidateIds.contains(it.modId)
+                    }
+                }
+
+                val mods = ModResolver.resolve(candidates, EnvType.CLIENT, mutableMapOf())
+                val bomDeps = arrayListOf<Pair<String, String>>()
+
+                for (mod in mods) {
+                    val version = sanitizeVersion(mod.version.friendlyString)
+
+                    bomDeps.add(mod.id to version)
+                    val out = createPom(mod.id, version)
+                    mod.copyToDir(out.parent, false).moveTo(out, overwrite = true)
+                }
+
+                return@getOrCreateBom bomDeps
+            }
+        } finally {
+            tempDir.toFile().deleteRecursively()
         }
-
-        val mods = ModResolver.resolve(candidates, EnvType.CLIENT, mutableMapOf())
-        val bomDeps = arrayListOf<Pair<String, String>>()
-
-        for (mod in mods) {
-            val version = sanitizeVersion(mod.version.friendlyString)
-
-            bomDeps.add(mod.id to version)
-            val out = createPom(mod.id, version)
-            mod.copyToDir(out.parent, false).moveTo(out, overwrite = true)
-        }
-
-        tempDir.toFile().deleteRecursively()
-        return createBom(desc.hash, bomDeps)
     }
 
 }

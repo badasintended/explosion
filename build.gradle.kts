@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "lol.bai"
-version = "0.1.0"
+version = providers.environmentVariable("VERSION").getOrElse("9999-local")
 
 repositories {
     mavenCentral()
@@ -63,8 +63,30 @@ tasks.build {
 publishing {
     repositories {
         maven {
-            name = "B2"
-            url = projectDir.resolve(".b2").toURI()
+            name = "LocalMaven"
+            url = projectDir.resolve(".localMaven").toURI()
+        }
+
+        if (providers.environmentVariable("GITHUB_TOKEN").isPresent) {
+            maven {
+                url = uri("https://maven.pkg.github.com/badasintended/wthit")
+                name = "GitHub"
+                credentials {
+                    username = providers.environmentVariable("GITHUB_ACTOR").get()
+                    password = providers.environmentVariable("GITHUB_TOKEN").get()
+                }
+            }
+        }
+
+        if (providers.environmentVariable("MAVEN_PASSWORD").isPresent) {
+            maven {
+                url = uri("https://maven4.bai.lol")
+                name = "Badasintended"
+                credentials {
+                    username = providers.environmentVariable("MAVEN_USERNAME").orNull
+                    password = providers.environmentVariable("MAVEN_PASSWORD").orNull
+                }
+            }
         }
     }
 }

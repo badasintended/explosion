@@ -6,13 +6,15 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.maven
 import java.io.File
+import kotlin.io.path.createDirectories
 
 class ExplosionPlugin : Plugin<Project> {
 
     override fun apply(project: Project): Unit = with(project) {
-        val outputDir = project.rootDir
-            .resolve(".gradle" + File.separator + "explodedMaven")
+        val outputDir = gradle.gradleUserHomeDir
+            .resolve("caches" + File.separator + "lol.bai.explosion")
             .toPath()
+            .createDirectories()
 
         extensions.create(
             ExplosionExt::class, "explosion", ExplosionExtImpl::class,
