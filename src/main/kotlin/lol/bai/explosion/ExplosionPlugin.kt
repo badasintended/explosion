@@ -6,6 +6,7 @@ import org.gradle.api.Project
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.maven
 import java.io.File
+import java.util.ServiceLoader
 import kotlin.io.path.createDirectories
 
 class ExplosionPlugin : Plugin<Project> {
