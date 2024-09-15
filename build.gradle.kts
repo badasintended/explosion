@@ -34,6 +34,8 @@ dependencies {
     implementation("com.electronwill.night-config:toml:3.7.3")
     implementation("org.apache.logging.log4j:log4j-api:2.22.1")
     implementation("org.apache.logging.log4j:log4j-core:2.22.1")
+    implementation("org.slf4j:slf4j-api:2.0.16")
+    implementation("com.google.code.gson:gson:2.11.0")
 
     compileOnlyShade("net.fabricmc:fabric-loader:0.15.10")
     shade("net.fabricmc:access-widener:2.1.0")
@@ -66,6 +68,15 @@ gradlePlugin {
             id = "lol.bai.explosion"
             implementationClass = "lol.bai.explosion.ExplosionPlugin"
         }
+    }
+}
+
+tasks.processResources {
+    val meta = "${project.group}:${project.name}:${project.version}"
+    inputs.property("meta", meta)
+
+    filesMatching("__meta.txt") {
+        expand("meta" to meta)
     }
 }
 
