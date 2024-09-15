@@ -3,46 +3,69 @@ package lol.bai.explosion.internal
 import com.google.common.hash.Hashing
 import lol.bai.explosion.ExplosionDesc
 import lol.bai.explosion.ExplosionExt
-import lol.bai.explosion.internal.fabric.FakeGameProvider
-import net.fabricmc.api.EnvType
-import net.fabricmc.loader.impl.FabricLoaderImpl
-import net.fabricmc.loader.impl.discovery.ModResolver
-import net.fabricmc.loader.impl.discovery.createModDiscoverer
-import net.fabricmc.loader.impl.launch.FabricLauncherBase
-import net.fabricmc.loader.impl.launch.knot.Knot
+import lol.bai.explosion.internal.resolver.ResolverTask
 import org.gradle.api.Action
 import org.gradle.api.Project
+import org.gradle.api.Transformer
+import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.invoke
 import java.io.File
 import java.nio.file.Path
 import kotlin.io.path.*
 
-abstract class ExplosionExtImpl(
+private class BomDependency(
+    val group: String,
+    val name: String,
+    val version: String
+)
+
+open class ExplosionExtImpl(
     private val project: Project,
-    private val outputDir: Path
+    private val outputDir: Path,
+    private val transformerId: String?,
+    private val transformer: Transformer<Path, Path>?
 ) : ExplosionExt {
+
+    @Suppress("unused")
+    constructor(project: Project, outputDir: Path) : this(project, outputDir, null, null)
 
     private fun Path.resolve(vararg path: String): Path {
         return resolve(path.joinToString(File.separator))
     }
 
-    private fun sanitizeVersion(version: String): String {
-        return version.replace(Regex("[^A-Za-z0-9.]"), "_")
-    }
+    private fun createPom(loader: String, name: String, version: String, jarPlacer: (Path) -> Unit): BomDependency {
+        val group = "exploded"
 
-    private fun createPom(name: String, version: String): Path {
+        var sanitizedVersion = loader + "_" + version.replace(Regex("[^A-Za-z0-9.]"), "_")
+        if (transformerId != null) sanitizedVersion = "${sanitizedVersion}_transformed_$transformerId"
+
         val pom = this.javaClass.classLoader.getResource("artifact.xml")!!.readText()
-            .replace("%GROUP_ID%", "exploded")
+            .replace("%GROUP_ID%", group)
             .replace("%ARTIFACT_ID%", name)
-            .replace("%VERSION%", version)
+            .replace("%VERSION%", sanitizedVersion)
 
-        val dir = outputDir.resolve("exploded", name, version)
+        val dir = outputDir.resolve("exploded", name, sanitizedVersion)
+
         dir.createDirectories()
-        dir.resolve("${name}-${version}.pom").writeText(pom)
-        return dir.resolve("${name}-${version}.jar")
+        dir.resolve("${name}-${sanitizedVersion}.pom").writeText(pom)
+
+        val jarPath = dir.resolve("${name}-${sanitizedVersion}.jar")
+        jarPlacer(jarPath)
+
+        if (transformer != null) {
+            val originalJarPath = dir.resolve("__original-${transformerId}.jar")
+            jarPath.moveTo(originalJarPath, overwrite = true)
+
+            val transformed = transformer.transform(originalJarPath)
+            transformed.moveTo(jarPath, overwrite = true)
+
+            originalJarPath.deleteIfExists()
+        }
+
+        return BomDependency(group, name, sanitizedVersion)
     }
 
-    private fun getOrCreateBom(hash: String, deps: () -> List<Pair<String, String>>): String {
+    private fun getOrCreateBom(hash: String, deps: () -> List<BomDependency>): String {
         val bom = "exploded-bom:${hash}:1"
         val dir = outputDir.resolve("exploded-bom", hash, "1")
         dir.createDirectories()
@@ -57,19 +80,16 @@ abstract class ExplosionExtImpl(
 
         val depTemplate = this.javaClass.classLoader.getResource("bom_dependency.xml")!!.readText()
 
-        fun createDependency(group: String, name: String, version: String): String {
-            val lines = depTemplate.replace("%GROUP_ID%", group)
-                .replace("%ARTIFACT_ID%", name)
-                .replace("%VERSION%", version)
-                .lines()
-
-            return lines.joinToString(separator = "\n        ", prefix = "        ")
-        }
-
         val depsStr = StringBuilder()
-        deps().forEach { (depName, depVersion) ->
+        deps().forEach {
             depsStr.append('\n')
-            depsStr.append(createDependency("exploded", depName, depVersion))
+
+            val lines = depTemplate
+                .replace("%GROUP_ID%", it.group)
+                .replace("%ARTIFACT_ID%", it.name)
+                .replace("%VERSION%", it.version)
+                .lines()
+            depsStr.append(lines.joinToString(separator = "\n        ", prefix = "        "))
         }
         depsStr.append('\n')
 
@@ -83,62 +103,64 @@ abstract class ExplosionExtImpl(
         return bom
     }
 
-    override fun fabric(action: Action<ExplosionDesc>) = project.provider {
+    private fun resolve(
+        action: Action<ExplosionDesc>,
+        loader: String
+    ) = project.provider {
         val desc = ExplosionDescImpl(project)
         action(desc)
 
-        val tempDir = createTempDirectory()
+        val inputDir = createTempDirectory()
+        val outputDir = createTempDirectory()
 
         try {
-            val hashBuilder = StringBuilder()
+            val hashBuilder = StringBuilder(loader).append(";")
+            if (transformerId != null) hashBuilder.append(transformerId).append(";")
 
             desc.resolveJars {
                 hashBuilder.append(Hashing.murmur3_128().hashBytes(it.readBytes()))
                 hashBuilder.append(";")
 
-                it.copyTo(tempDir.resolve(it.name).toFile())
+                it.copyTo(inputDir.resolve(it.name).toFile())
             }
 
             val hash = Hashing.murmur3_128().hashString(hashBuilder.toString(), Charsets.UTF_8).toString()
+
             return@provider getOrCreateBom(hash) {
-                if (FabricLauncherBase.getLauncher() == null) Knot(EnvType.CLIENT)
-
-                val loader = FabricLoaderImpl.INSTANCE.apply {
-                    gameProvider = FakeGameProvider(tempDir)
+                val task = project.tasks.create<ResolverTask>("__explosion_resolver_" + Any().hashCode()) {
+                    this.loader.set(loader)
+                    this.inputDir.set(inputDir.toFile())
+                    this.outputDir.set(outputDir.toFile())
                 }
 
-                val candidates = createModDiscoverer(tempDir).discoverMods(loader, mutableMapOf())
-                candidates.removeIf { it.id == "java" }
+                task.exec()
+                task.enabled = false
+                val metaLines = outputDir.resolve("__meta.txt").readLines()
+                val bomDeps = arrayListOf<BomDependency>()
 
-                val candidateIds = hashSetOf<String>()
+                for (line in metaLines) {
+                    val trimmed = line.trim()
+                    if (trimmed.isEmpty()) continue
 
-                candidates.forEach {
-                    candidateIds.add(it.id)
-                    candidateIds.addAll(it.provides)
-                }
-
-                candidates.forEach { candidate ->
-                    candidate.metadata.dependencies = candidate.metadata.dependencies.filter {
-                        candidateIds.contains(it.modId)
-                    }
-                }
-
-                val mods = ModResolver.resolve(candidates, EnvType.CLIENT, mutableMapOf())
-                val bomDeps = arrayListOf<Pair<String, String>>()
-
-                for (mod in mods) {
-                    val version = sanitizeVersion(mod.version.friendlyString)
-
-                    bomDeps.add(mod.id to version)
-                    val out = createPom(mod.id, version)
-                    mod.copyToDir(out.parent, false).moveTo(out, overwrite = true)
+                    val (modFile, modId, version) = trimmed.split("\t")
+                    bomDeps.add(createPom(loader, modId, version) { path ->
+                        outputDir.resolve(modFile).copyTo(path)
+                    })
                 }
 
                 return@getOrCreateBom bomDeps
             }
         } finally {
-            tempDir.toFile().deleteRecursively()
+            inputDir.toFile().deleteRecursively()
+            outputDir.toFile().deleteRecursively()
         }
     }
+
+    override fun withTransformer(id: String, transformer: Transformer<Path, Path>): ExplosionExt {
+        return ExplosionExtImpl(project, outputDir, id, transformer)
+    }
+
+    override fun fabric(action: Action<ExplosionDesc>) = resolve(action, "fabric")
+    override fun forge(action: Action<ExplosionDesc>) = resolve(action, "forge")
 
 }

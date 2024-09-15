@@ -13,6 +13,8 @@ version = providers.environmentVariable("VERSION").getOrElse("9999-local")
 repositories {
     mavenCentral()
     maven("https://maven.fabricmc.net/")
+    maven("https://maven.minecraftforge.net/")
+    maven("https://libraries.minecraft.net/")
 }
 
 configurations {
@@ -20,11 +22,34 @@ configurations {
 }
 
 dependencies {
-    implementation("com.google.guava:guava:32.1.2-jre")
+    val shade by configurations
+    fun compileOnlyShade(artifact: String, action: ExternalModuleDependency.() -> Unit = {}) {
+        compileOnly(artifact, action)
+        shade(artifact, action)
+    }
 
-    compileOnly("net.fabricmc:fabric-loader:0.14.22")
-    "shade"("net.fabricmc:fabric-loader:0.14.22")
-    "shade"("net.fabricmc:access-widener:2.1.0")
+    implementation("com.google.guava:guava:32.1.2-jre")
+    implementation("org.apache.maven:maven-artifact:3.8.1")
+    implementation("com.electronwill.night-config:core:3.7.3")
+    implementation("com.electronwill.night-config:toml:3.7.3")
+    implementation("org.apache.logging.log4j:log4j-api:2.22.1")
+    implementation("org.apache.logging.log4j:log4j-core:2.22.1")
+    implementation("org.slf4j:slf4j-api:2.0.16")
+    implementation("com.google.code.gson:gson:2.11.0")
+
+    compileOnlyShade("net.fabricmc:fabric-loader:0.15.10")
+    shade("net.fabricmc:access-widener:2.1.0")
+
+    compileOnlyShade("com.mojang:logging:1.2.7") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:fmlloader:1.20.4-49.0.49") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:modlauncher:10.2.1") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:securemodules:2.2.12") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:forgespi:7.1.5") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:JarJarFileSystems:0.3.26") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:JarJarMetadata:0.3.26") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:JarJarSelector:0.3.26") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:unsafe:0.9.2") { isTransitive = false }
+    compileOnlyShade("net.minecraftforge:mergetool-api:1.0")
 
     testImplementation(kotlin("test"))
 }
@@ -34,7 +59,7 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(17)
 }
 
 gradlePlugin {
@@ -46,14 +71,32 @@ gradlePlugin {
     }
 }
 
+tasks.processResources {
+    val meta = "${project.group}:${project.name}:${project.version}"
+    inputs.property("meta", meta)
+
+    filesMatching("__meta.txt") {
+        expand("meta" to meta)
+    }
+}
+
 tasks.shadowJar {
     configurations = listOf(project.configurations["shade"])
     archiveClassifier.set("")
-    relocate("net.fabricmc", "lol.bai.explosion.internal.lib.fabricloader")
-    minimize()
+    mergeServiceFiles()
+
+    relocate("net.fabricmc", "lol.bai.explosion.internal.lib.net.fabricmc")
+    relocate("net.minecraftforge", "lol.bai.explosion.internal.lib.net.minecraftforge")
+    relocate("cpw", "lol.bai.explosion.internal.lib.cpw")
+    relocate("com.mojang", "lol.bai.explosion.internal.lib.com.mojang")
+
     exclude("ui/**")
     exclude("assets/**")
     exclude("fabric*.json")
+    exclude("log4j2*")
+    exclude("LICENSE_fabric-loader")
+    exclude("META-INF/jars/**")
+    exclude("META-INF/org/apache/logging/**")
 }
 
 tasks.build {
