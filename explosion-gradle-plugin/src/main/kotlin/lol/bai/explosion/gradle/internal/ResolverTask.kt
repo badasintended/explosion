@@ -1,4 +1,4 @@
-package lol.bai.explosion.internal.resolver
+package lol.bai.explosion.gradle.internal
 
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.Property
@@ -8,12 +8,8 @@ import org.gradle.work.DisableCachingByDefault
 @DisableCachingByDefault
 abstract class ResolverTask : JavaExec() {
 
-    companion object {
-        const val CONFIGURATION = "__explosion_resolver"
-    }
-
     @get:Input
-    abstract val loader: Property<String>
+    abstract val configuration: Property<String>
 
     @get:InputDirectory
     abstract val inputDir: DirectoryProperty
@@ -21,15 +17,11 @@ abstract class ResolverTask : JavaExec() {
     @get:OutputDirectory
     abstract val outputDir: DirectoryProperty
 
-    init {
-        classpath = project.configurations.getByName(CONFIGURATION)
-        mainClass.set("lol.bai.explosion.internal.resolver.MainKt")
-    }
-
     @TaskAction
     override fun exec() {
+        classpath = project.configurations.getByName(configuration.get())
+
         args(
-            loader.get(),
             inputDir.asFile.get().absolutePath,
             outputDir.asFile.get().absolutePath,
         )

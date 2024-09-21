@@ -1,10 +1,10 @@
-package lol.bai.explosion
+package lol.bai.explosion.gradle
 
-import lol.bai.explosion.internal.ExplosionExtImpl
-import lol.bai.explosion.internal.resolver.ResolverTask
+import lol.bai.explosion.gradle.internal.ExplosionExtImpl
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.kotlin.dsl.*
+import org.gradle.kotlin.dsl.create
+import org.gradle.kotlin.dsl.maven
 import java.io.File
 import kotlin.io.path.createDirectories
 
@@ -23,12 +23,6 @@ class ExplosionPlugin : Plugin<Project> {
 
         repositories.maven(outputDir.toFile()) {
             name = "ExplodedPluginCache"
-        }
-
-        val resolver = configurations.create(ResolverTask.CONFIGURATION)
-        dependencies {
-            resolver(embeddedKotlin("stdlib"))
-            resolver(ExplosionPlugin::class.java.classLoader.getResource("__meta.txt")!!.readText().trim())
         }
     }
 

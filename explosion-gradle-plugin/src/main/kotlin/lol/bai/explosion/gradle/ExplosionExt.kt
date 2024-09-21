@@ -1,4 +1,4 @@
-package lol.bai.explosion
+package lol.bai.explosion.gradle
 
 import groovy.lang.Closure
 import groovy.lang.DelegatesTo

@@ -1,13 +1,14 @@
-package lol.bai.explosion.internal
+package lol.bai.explosion.gradle.internal
 
 import com.google.common.hash.Hashing
-import lol.bai.explosion.ExplosionDesc
-import lol.bai.explosion.ExplosionExt
-import lol.bai.explosion.internal.resolver.ResolverTask
+import lol.bai.explosion.gradle.ExplosionDesc
+import lol.bai.explosion.gradle.ExplosionExt
 import org.gradle.api.Action
 import org.gradle.api.Project
 import org.gradle.api.Transformer
 import org.gradle.kotlin.dsl.create
+import org.gradle.kotlin.dsl.dependencies
+import org.gradle.kotlin.dsl.embeddedKotlin
 import org.gradle.kotlin.dsl.invoke
 import java.io.File
 import java.nio.file.Path
@@ -31,6 +32,10 @@ open class ExplosionExtImpl(
 
     private fun Path.resolve(vararg path: String): Path {
         return resolve(path.joinToString(File.separator))
+    }
+
+    private fun log(message: String) {
+        project.logger.lifecycle("lol.bai.explosion: $message")
     }
 
     private fun createPom(loader: String, name: String, version: String, jarPlacer: (Path) -> Unit): BomDependency {
@@ -72,11 +77,11 @@ open class ExplosionExtImpl(
         val output = dir.resolve("${hash}-1.pom")
 
         if (output.exists()) {
-            project.logger.lifecycle("Exploded BOM for hash $hash already exists, skipping")
+            log("Exploded BOM for hash $hash already exists, skipping")
             return bom
         }
 
-        project.logger.lifecycle("Building exploded BOM for hash $hash")
+        log("Building exploded BOM for hash $hash")
 
         val depTemplate = this.javaClass.classLoader.getResource("bom_dependency.xml")!!.readText()
 
@@ -100,12 +105,14 @@ open class ExplosionExtImpl(
             .replace("%DEPENDENCIES%", depsStr.toString())
 
         output.writeText(pom)
+
+        log("Done")
         return bom
     }
 
     private fun resolve(
         action: Action<ExplosionDesc>,
-        loader: String
+        loader: String,
     ) = project.provider {
         val desc = ExplosionDescImpl(project)
         action(desc)
@@ -127,25 +134,37 @@ open class ExplosionExtImpl(
             val hash = Hashing.murmur3_128().hashString(hashBuilder.toString(), Charsets.UTF_8).toString()
 
             return@provider getOrCreateBom(hash) {
-                val task = project.tasks.create<ResolverTask>("__explosion_resolver_" + Any().hashCode()) {
-                    this.loader.set(loader)
+                val key = "__explosion_resolver_" + Any().hashCode()
+                val meta = javaClass.classLoader.getResource("__meta.txt")!!.readText().trim()
+                val (group, _, version) = meta.split(':')
+                val configuration = project.configurations.create(key)
+
+                project.dependencies {
+                    configuration(embeddedKotlin("stdlib"))
+                    configuration(group, "explosion-resolver-${loader}", version)
+                }
+
+                val task = project.tasks.create<ResolverTask>(key) {
+                    this.configuration.set(key)
+                    this.mainClass.set("lol.bai.explosion.resolver.${loader}.MainKt")
                     this.inputDir.set(inputDir.toFile())
                     this.outputDir.set(outputDir.toFile())
                 }
 
                 task.exec()
                 task.enabled = false
-                val metaLines = outputDir.resolve("__meta.txt").readLines()
+                project.configurations.remove(configuration)
+
+
                 val bomDeps = arrayListOf<BomDependency>()
-
-                for (line in metaLines) {
+                outputDir.resolve("__meta.txt").forEachLine { line ->
                     val trimmed = line.trim()
-                    if (trimmed.isEmpty()) continue
-
-                    val (modFile, modId, version) = trimmed.split("\t")
-                    bomDeps.add(createPom(loader, modId, version) { path ->
-                        outputDir.resolve(modFile).copyTo(path)
-                    })
+                    if (trimmed.isNotEmpty()) {
+                        val (modFile, modId, modVersion) = trimmed.split("\t")
+                        bomDeps.add(createPom(loader, modId, modVersion) { path ->
+                            outputDir.resolve(modFile).copyTo(path)
+                        })
+                    }
                 }
 
                 return@getOrCreateBom bomDeps

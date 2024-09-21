@@ -1,4 +1,4 @@
-package lol.bai.explosion.internal.fabric
+package lol.bai.explosion.resolver.fabric
 
 import net.fabricmc.loader.impl.game.GameProvider
 import net.fabricmc.loader.impl.game.patch.GameTransformer

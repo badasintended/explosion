@@ -1,6 +1,6 @@
-package lol.bai.explosion.internal
+package lol.bai.explosion.gradle.internal
 
-import lol.bai.explosion.ExplosionDesc
+import lol.bai.explosion.gradle.ExplosionDesc
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.FileCollectionDependency

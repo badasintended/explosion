@@ -1,4 +1,4 @@
-package lol.bai.explosion
+package lol.bai.explosion.gradle
 
 import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.provider.Provider
