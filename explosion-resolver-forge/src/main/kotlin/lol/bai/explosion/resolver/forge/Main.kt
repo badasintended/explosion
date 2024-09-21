@@ -5,11 +5,14 @@ import net.minecraftforge.fml.loading.moddiscovery.JarInJarDependencyLocator
 import net.minecraftforge.fml.loading.moddiscovery.ModFile
 import net.minecraftforge.fml.loading.moddiscovery.createModsFolderLocator
 import net.minecraftforge.forgespi.locating.IModFile
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kotlin.io.path.Path
-import kotlin.io.path.copyTo
+import kotlin.io.path.inputStream
 import kotlin.io.path.name
 import kotlin.io.path.writeText
 
+@Suppress("UnstableApiUsage")
 fun main(args: Array<String>) {
     val (inputDirStr, outputDirStr) = args
     val inputDir = Path(inputDirStr)
@@ -30,7 +33,7 @@ fun main(args: Array<String>) {
     for (modFile in uniqueModFiles) {
         val mod = modFile.modInfos[0]
         val path = outputDir.resolve("${mod.modId}-${mod.version}")
-        modFile.filePath.copyTo(path, overwrite = true)
+        Files.copy(modFile.filePath.inputStream(), path, StandardCopyOption.REPLACE_EXISTING)
         meta.append(path.name)
             .append("\t")
             .append(mod.modId)

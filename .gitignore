@@ -39,3 +39,7 @@ bin/
 .DS_Store
 
 .localMaven/
+
+explosion-test-*/**
+!explosion-test-*/build.gradle
+!explosion-test-*/settings.gradle

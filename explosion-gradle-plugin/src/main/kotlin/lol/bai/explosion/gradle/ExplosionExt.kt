@@ -6,16 +6,16 @@ import org.gradle.api.Action
 import org.gradle.api.Transformer
 import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.provider.Provider
-import java.io.File
 import java.nio.file.Path
+import kotlin.io.path.name
 
 interface ExplosionExt {
 
     fun withTransformer(id: String, transformer: Transformer<Path, Path>): ExplosionExt
 
-    fun withTransformer(id: String, @DelegatesTo(File::class) closure: Closure<Path>) = withTransformer(id) r@{
-        closure.delegate = this
-        return@r closure.call(this)
+    fun withTransformer(id: String, @DelegatesTo(Path::class) closure: Closure<Path>) = withTransformer(id) r@{
+        closure.delegate = it
+        return@r closure.call(it)
     }
 
     // ---

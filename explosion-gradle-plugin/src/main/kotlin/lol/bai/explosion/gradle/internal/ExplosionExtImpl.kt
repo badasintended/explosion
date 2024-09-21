@@ -128,7 +128,7 @@ open class ExplosionExtImpl(
                 hashBuilder.append(Hashing.murmur3_128().hashBytes(it.readBytes()))
                 hashBuilder.append(";")
 
-                it.copyTo(inputDir.resolve(it.name).toFile())
+                it.copyTo(inputDir.resolve(it.name).toFile(), overwrite = true)
             }
 
             val hash = Hashing.murmur3_128().hashString(hashBuilder.toString(), Charsets.UTF_8).toString()
@@ -158,11 +158,12 @@ open class ExplosionExtImpl(
 
                 val bomDeps = arrayListOf<BomDependency>()
                 outputDir.resolve("__meta.txt").forEachLine { line ->
+                    log(line)
                     val trimmed = line.trim()
                     if (trimmed.isNotEmpty()) {
                         val (modFile, modId, modVersion) = trimmed.split("\t")
                         bomDeps.add(createPom(loader, modId, modVersion) { path ->
-                            outputDir.resolve(modFile).copyTo(path)
+                            outputDir.resolve(modFile).copyTo(path, overwrite = true)
                         })
                     }
                 }

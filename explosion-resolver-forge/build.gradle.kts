@@ -12,6 +12,7 @@ dependencies {
     implementation("com.electronwill.night-config:toml:3.7.3")
     implementation("org.apache.logging.log4j:log4j-api:2.22.1")
     implementation("org.apache.logging.log4j:log4j-core:2.22.1")
+    implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.22.1")
     implementation("org.slf4j:slf4j-api:2.0.16")
     implementation("com.google.code.gson:gson:2.11.0")
 

@@ -1,0 +1,29 @@
+plugins {
+    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'lol.bai.explosion'
+}
+
+minecraft {
+    mappings channel: "official", version: "1.20.1"
+}
+
+repositories {
+    maven {
+        url "https://cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+}
+
+
+dependencies {
+    minecraft "net.minecraftforge:forge:1.20.1-47.3.0"
+
+    def deobfuscator = new net.minecraftforge.gradle.userdev.util.Deobfuscator(project, file("build/explosion_deobf"))
+    def explosion = project.explosion.withTransformer("forge_official_1.20.1") {
+        return deobfuscator.deobfBinary(it.toFile(), "official_1.20.1", it.fileName.toString()).toPath()
+    }
+
+    implementation explosion.forge("curse.maven:create-328085:5689514")
+}
