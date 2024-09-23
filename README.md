@@ -1,27 +1,67 @@
 # explosion!!!
 
-A Gradle plugin to resolve Jar-in-Jar dependencies.
+There is a time when you need to depend on a mod that uses Jar-in-Jar
+and you need to access classes from those JiJ, but it is a private JiJ,
+and it doesn't get published to any Maven repository, so you scrap your
+entire mod idea into the abyss, never to be seen again.
+
+Right? Or maybe it's only me?
+
+Well, I made this Gradle plugin to solve exactly that. This plugin will
+resolve Jar-in-Jars, making it available to be depended upon.
 
 ## Basic Usage
 ```groovy
 // settings.gradle
 pluginManagement {
-    repositories {
-        maven { url "https://maven2.bai.lol" }
-    }
+   repositories {
+      maven {
+         url "https://maven2.bai.lol"
+         content {
+            includeGroup "lol.bai.explosion"
+         }
+      }
+   }
 }
 ```
 
 ```groovy
 // build.gradle
 plugins {
-    id "lol.bai.explosion" version "0.2.0"
+   id "lol.bai.explosion" version "0.3.0"
+}
+
+repositories {
+   maven {
+      url "https://maven2.bai.lol"
+      content {
+         includeGroup "lol.bai.explosion"
+      }
+   }
 }
 
 dependencies {
-    modImplementation explosion.fabric("curse.maven:fabric-api-306612:4764776")
+   modImplementation explosion.fabric("curse.maven:fabric-api-306612:5710210")
+   implementation explosion.forge("curse.maven:create-328085:5689514")
+   implementation explosion.neoforge("curse.maven:ender-io-64578:5720393")
 }
 ```
+> [!WARNING]
+> `fg.deobf` won't work with exploded dependency, you need to manually deobfuscate
+> the jar.
+> ```groovy
+> // replace the mapping as needed
+> def mapping = "official_1.20.1"
+> def deobfuscator = new net.minecraftforge.gradle.userdev.util.Deobfuscator(project, file("build/explosion_deobf"))
+> def explode = explosion.forge.with(mapping) {
+>     transformer {
+>         return deobfuscator.deobfBinary(it.toFile(), mapping, it.fileName.toString()).toPath()
+>     }
+> }
+> 
+> // then use the explode variable
+> implementation explode("curse.maven:create-328085:5689514")
+> ```
 
 ## Advanced Usage
 
@@ -62,3 +102,9 @@ Explosion can also be used to debug modpacks by depending on the modpack's mods 
 6. Pray for it to be able to run.
 7. Fix mappings error, if any.
 8. Pray again.
+
+## How does this work?
+Explosion simply uses the existing loader infrastructure on each
+platform to load and resolve the mod jars. It literally runs the
+loader as if it's the runtime and hack it to get the loaded jars.
+Well, as long as it works, amirite?
