@@ -35,7 +35,7 @@ fun main(args: Array<String>) {
 
     candidates.forEach { candidate ->
         candidate.metadata.dependencies = candidate.metadata.dependencies.filter {
-            candidateIds.contains(it.modId)
+            it.kind.isPositive && candidateIds.contains(it.modId)
         }
     }
 
