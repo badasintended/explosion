@@ -4,7 +4,7 @@ import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.provider.Provider
 import java.io.File
 
-interface ExplosionDesc {
+interface ExplosionPlatformDesc {
 
     fun maven(notation: String)
 

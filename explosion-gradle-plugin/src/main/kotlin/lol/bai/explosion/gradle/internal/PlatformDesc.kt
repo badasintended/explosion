@@ -1,6 +1,6 @@
 package lol.bai.explosion.gradle.internal
 
-import lol.bai.explosion.gradle.ExplosionDesc
+import lol.bai.explosion.gradle.ExplosionPlatformDesc
 import org.gradle.api.Project
 import org.gradle.api.artifacts.ExternalModuleDependency
 import org.gradle.api.artifacts.FileCollectionDependency
@@ -10,9 +10,9 @@ import org.gradle.kotlin.dsl.add
 import org.gradle.kotlin.dsl.withType
 import java.io.File
 
-class ExplosionDescImpl(
+class PlatformDesc(
     private val project: Project
-) : ExplosionDesc {
+) : ExplosionPlatformDesc {
 
     private val dependencyModifiers = mutableListOf<(DependencyHandler, String) -> Unit>()
 

@@ -1,11 +1,11 @@
 package lol.bai.explosion.gradle.internal
 
 import com.google.common.hash.Hashing
-import lol.bai.explosion.gradle.ExplosionDesc
-import lol.bai.explosion.gradle.ExplosionExt
+import lol.bai.explosion.gradle.ExplosionPlatform
+import lol.bai.explosion.gradle.ExplosionPlatformConfig
+import lol.bai.explosion.gradle.ExplosionPlatformDesc
 import org.gradle.api.Action
 import org.gradle.api.Project
-import org.gradle.api.Transformer
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.embeddedKotlin
@@ -20,15 +20,12 @@ private class BomDependency(
     val version: String
 )
 
-open class ExplosionExtImpl(
+class Platform(
     private val project: Project,
+    private val loader: String,
     private val outputDir: Path,
-    private val transformerId: String?,
-    private val transformer: Transformer<Path, Path>?
-) : ExplosionExt {
-
-    @Suppress("unused")
-    constructor(project: Project, outputDir: Path) : this(project, outputDir, null, null)
+    private val config: PlatformConfig?
+) : ExplosionPlatform {
 
     private fun Path.resolve(vararg path: String): Path {
         return resolve(path.joinToString(File.separator))
@@ -42,7 +39,7 @@ open class ExplosionExtImpl(
         val group = "exploded"
 
         var sanitizedVersion = loader + "_" + version.replace(Regex("[^A-Za-z0-9.]"), "_")
-        if (transformerId != null) sanitizedVersion = "${sanitizedVersion}_transformed_$transformerId"
+        if (config != null) sanitizedVersion = "${sanitizedVersion}_transformed_${config.id}"
 
         val pom = this.javaClass.classLoader.getResource("artifact.xml")!!.readText()
             .replace("%GROUP_ID%", group)
@@ -57,11 +54,11 @@ open class ExplosionExtImpl(
         val jarPath = dir.resolve("${name}-${sanitizedVersion}.jar")
         jarPlacer(jarPath)
 
-        if (transformer != null) {
-            val originalJarPath = dir.resolve("__original-${transformerId}.jar")
+        if (config?.transformer != null) {
+            val originalJarPath = dir.resolve("__original-${config.id}.jar")
             jarPath.moveTo(originalJarPath, overwrite = true)
 
-            val transformed = transformer.transform(originalJarPath)
+            val transformed = config.transformer!!.transform(originalJarPath)
             transformed.moveTo(jarPath, overwrite = true)
 
             originalJarPath.deleteIfExists()
@@ -110,11 +107,8 @@ open class ExplosionExtImpl(
         return bom
     }
 
-    private fun resolve(
-        action: Action<ExplosionDesc>,
-        loader: String,
-    ) = project.provider {
-        val desc = ExplosionDescImpl(project)
+    override fun invoke(action: Action<ExplosionPlatformDesc>) = project.provider {
+        val desc = PlatformDesc(project)
         action(desc)
 
         val inputDir = createTempDirectory()
@@ -122,7 +116,7 @@ open class ExplosionExtImpl(
 
         try {
             val hashBuilder = StringBuilder(loader).append(";")
-            if (transformerId != null) hashBuilder.append(transformerId).append(";")
+            if (config != null) hashBuilder.append(config.id).append(";")
 
             desc.resolveJars {
                 hashBuilder.append(Hashing.murmur3_128().hashBytes(it.readBytes()))
@@ -155,7 +149,6 @@ open class ExplosionExtImpl(
                 task.enabled = false
                 project.configurations.remove(configuration)
 
-
                 val bomDeps = arrayListOf<BomDependency>()
                 outputDir.resolve("__meta.txt").forEachLine { line ->
                     log(line)
@@ -176,11 +169,10 @@ open class ExplosionExtImpl(
         }
     }
 
-    override fun withTransformer(id: String, transformer: Transformer<Path, Path>): ExplosionExt {
-        return ExplosionExtImpl(project, outputDir, id, transformer)
+    override fun with(id: String, action: Action<ExplosionPlatformConfig>): ExplosionPlatform {
+        val config = PlatformConfig(id)
+        action(config)
+        return Platform(project, loader, outputDir, config)
     }
-
-    override fun fabric(action: Action<ExplosionDesc>) = resolve(action, "fabric")
-    override fun forge(action: Action<ExplosionDesc>) = resolve(action, "forge")
 
 }

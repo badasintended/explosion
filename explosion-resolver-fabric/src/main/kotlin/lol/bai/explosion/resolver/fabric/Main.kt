@@ -22,7 +22,9 @@ fun main(args: Array<String>) {
         gameProvider = FakeGameProvider(inputDir)
     }
 
-    val candidates = createModDiscoverer(inputDir).discoverMods(loader, mutableMapOf())
+    val discoverer = createModDiscoverer(inputDir)
+
+    val candidates = discoverer.discoverMods(loader, mutableMapOf())
     candidates.removeIf { it.id == "java" }
 
     val candidateIds = hashSetOf<String>()

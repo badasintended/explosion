@@ -21,9 +21,11 @@ dependencies {
     minecraft "net.minecraftforge:forge:1.20.1-47.3.0"
 
     def deobfuscator = new net.minecraftforge.gradle.userdev.util.Deobfuscator(project, file("build/explosion_deobf"))
-    def explosion = project.explosion.withTransformer("forge_official_1.20.1") {
-        return deobfuscator.deobfBinary(it.toFile(), "official_1.20.1", it.fileName.toString()).toPath()
+    def explode = explosion.forge.with("official_1.20.1") {
+        transformer {
+            return deobfuscator.deobfBinary(it.toFile(), "official_1.20.1", it.fileName.toString()).toPath()
+        }
     }
 
-    implementation explosion.forge("curse.maven:create-328085:5689514")
+    implementation explode("curse.maven:create-328085:5689514")
 }

@@ -1,6 +1,6 @@
 package lol.bai.explosion.gradle
 
-import lol.bai.explosion.gradle.internal.ExplosionExtImpl
+import lol.bai.explosion.gradle.internal.Explosion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.kotlin.dsl.create
@@ -17,7 +17,7 @@ class ExplosionPlugin : Plugin<Project> {
             .createDirectories()
 
         extensions.create(
-            ExplosionExt::class, "explosion", ExplosionExtImpl::class,
+            ExplosionExt::class, "explosion", Explosion::class,
             project, outputDir
         )
 
