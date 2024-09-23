@@ -1,0 +1,21 @@
+plugins {
+    id 'net.neoforged.moddev' version '1.0.17'
+    id 'lol.bai.explosion'
+}
+
+neoForge {
+    version = "21.1.58"
+}
+
+repositories {
+    maven {
+        url "https://cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+}
+
+dependencies {
+    implementation explosion.neoforge("curse.maven:ender-io-64578:5720393")
+}

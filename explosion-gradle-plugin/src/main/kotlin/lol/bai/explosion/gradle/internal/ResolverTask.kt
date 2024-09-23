@@ -27,6 +27,8 @@ abstract class ResolverTask : JavaExec() {
             outputDir.asFile.get().absolutePath,
         )
 
+        jvmArgs("--add-opens=java.base/java.lang.invoke=ALL-UNNAMED")
+
         super.exec()
     }
 

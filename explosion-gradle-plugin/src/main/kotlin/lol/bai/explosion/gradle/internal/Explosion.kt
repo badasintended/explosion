@@ -10,5 +10,6 @@ open class Explosion(project: Project, outputDir: Path) : ExplosionExt {
 
     override val fabric = Platform(project, "fabric", outputDir, null)
     override val forge = Platform(project, "forge", outputDir, null)
+    override val neoforge = Platform(project, "neoforge", outputDir, null)
 
 }

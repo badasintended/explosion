@@ -2,13 +2,13 @@ plugins {
     `maven-publish`
 
     kotlin("jvm") version "1.9.22"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "8.3.2"
 }
 
 allprojects {
     apply(plugin = "maven-publish")
     apply(plugin = "org.jetbrains.kotlin.jvm")
-    apply(plugin = "com.github.johnrengelman.shadow")
+    apply(plugin = "com.gradleup.shadow")
 
     version = providers.environmentVariable("VERSION").getOrElse("9999-local")
     group = "lol.bai.explosion"

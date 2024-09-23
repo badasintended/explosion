@@ -4,5 +4,6 @@ interface ExplosionExt {
 
     val fabric: ExplosionPlatform
     val forge: ExplosionPlatform
+    val neoforge: ExplosionPlatform
 
 }
