@@ -28,7 +28,7 @@ pluginManagement {
 ```groovy
 // build.gradle
 plugins {
-   id "lol.bai.explosion" version "0.3.0"
+   id "lol.bai.explosion" version "0.3.1"
 }
 
 repositories {
