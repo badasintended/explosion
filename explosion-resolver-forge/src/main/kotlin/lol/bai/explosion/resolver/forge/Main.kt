@@ -4,13 +4,13 @@ import net.minecraftforge.fml.loading.UniqueModListBuilder
 import net.minecraftforge.fml.loading.moddiscovery.JarInJarDependencyLocator
 import net.minecraftforge.fml.loading.moddiscovery.ModFile
 import net.minecraftforge.fml.loading.moddiscovery.createModsFolderLocator
-import net.minecraftforge.forgespi.locating.IModFile
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import kotlin.io.path.Path
 import kotlin.io.path.inputStream
 import kotlin.io.path.name
 import kotlin.io.path.writeText
+import kotlin.jvm.optionals.getOrNull
 
 @Suppress("UnstableApiUsage")
 fun main(args: Array<String>) {
@@ -28,17 +28,22 @@ fun main(args: Array<String>) {
     val meta = StringBuilder()
     val uniqueModFiles = UniqueModListBuilder(combinedModFiles)
         .buildUniqueList().modFiles
-        .filter { it.type == IModFile.Type.MOD }
 
     for (modFile in uniqueModFiles) {
-        val mod = modFile.modInfos[0]
-        val path = outputDir.resolve("${mod.modId}-${mod.version}")
+        val jar = modFile.secureJar.moduleDataProvider().descriptor()
+        val mod = modFile.modInfos.firstOrNull()
+
+        val id = mod?.modId ?: jar.name()
+        val version = mod?.version ?: jar.rawVersion().getOrNull()
+        if (version == null) continue
+
+        val path = outputDir.resolve("${id}-${version}")
         Files.copy(modFile.filePath.inputStream(), path, StandardCopyOption.REPLACE_EXISTING)
         meta.append(path.name)
             .append("\t")
-            .append(mod.modId)
+            .append(id)
             .append("\t")
-            .append(mod.version)
+            .append(version)
             .append("\n")
     }
 
