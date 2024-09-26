@@ -20,6 +20,12 @@ private class BomDependency(
     val version: String
 )
 
+private val meta by lazy {
+    val meta = Platform::class.java.classLoader.getResource("__meta.txt")!!.readText().trim()
+    val (group, name, version) = meta.split(':')
+    BomDependency(group, name, version)
+}
+
 class Platform(
     private val project: Project,
     private val loader: String,
@@ -115,8 +121,12 @@ class Platform(
         val outputDir = createTempDirectory()
 
         try {
-            val hashBuilder = StringBuilder(loader).append(";")
-            if (config != null) hashBuilder.append(config.id).append(";")
+            val hashBuilder = StringBuilder()
+                .append(loader).append(";")
+                .append(meta.version).append(";")
+
+            if (config != null) hashBuilder
+                .append(config.id).append(";")
 
             desc.resolveJars {
                 hashBuilder.append(Hashing.murmur3_128().hashBytes(it.readBytes()))
@@ -129,13 +139,11 @@ class Platform(
 
             return@provider getOrCreateBom(hash) {
                 val key = "__explosion_resolver_" + Any().hashCode()
-                val meta = javaClass.classLoader.getResource("__meta.txt")!!.readText().trim()
-                val (group, _, version) = meta.split(':')
                 val configuration = project.configurations.create(key)
 
                 project.dependencies {
                     configuration(embeddedKotlin("stdlib"))
-                    configuration(group, "explosion-resolver-${loader}", version)
+                    configuration(meta.group, "explosion-resolver-${loader}", meta.version)
                 }
 
                 val task = project.tasks.create<ResolverTask>(key) {
